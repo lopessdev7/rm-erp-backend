@@ -40,3 +40,4 @@ curl http://localhost:3000/health
 Ainda não há seed. Para criar o primeiro usuário admin manualmente,
 gere um hash bcrypt da senha e insira direto no banco, ou peça para
 eu criar um script de seed na próxima etapa.
+
