@@ -28,16 +28,10 @@ curl http://localhost:3000/health
 - Guards que impedem token de um domínio funcionar no outro
 - CRUD mínimo de empresas: `GET /admin/companies`,
   `POST /admin/companies` (exige token de admin)
-- CRUD de produtos: `GET/POST /app/products`, `DELETE /app/products/:id`
-- CRUD de clientes: `GET/POST /app/customers`, `DELETE /app/customers/:id`
-  (a listagem já retorna `balance`, o saldo devedor de fiado)
-- Vendas: `GET/POST /app/sales`, `PATCH /app/sales/:id/pay` (dar baixa
-  numa venda fiado). Todas exigem token de app (empresa cliente) e
-  são sempre filtradas por `companyId`.
 
 ## O que NÃO existe ainda (proposital, é para sprints futuras)
 
-- UI do painel admin e do app cliente em React (só o protótipo HTML)
+- UI do painel admin e do app cliente
 - Ativar/bloquear empresa, troca de plano, cobrança de mensalidade
 - Estatísticas gerais, comunicados, licenças (só a tabela existe)
 
