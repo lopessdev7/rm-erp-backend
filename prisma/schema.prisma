@@ -1,0 +1,206 @@
+// Schema inicial do RM ERP
+// Decisão: dois domínios de identidade (admin_users x users) e todas
+// as tabelas de negócio isoladas por company_id (multi-tenant).
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// ---------------------------------------------------------------
+// PAINEL ADMIN RM DIGITAL
+// ---------------------------------------------------------------
+
+// Usuários internos da RM Digital (você, e futura equipe).
+// Não têm company_id: não pertencem a nenhuma empresa cliente.
+model AdminUser {
+  id           String   @id @default(uuid())
+  name         String
+  email        String   @unique
+  passwordHash String
+  createdAt    DateTime @default(now())
+
+  announcements Announcement[]
+
+  @@map("admin_users")
+}
+
+// Entidade central do painel admin: cada empresa cliente do RM ERP.
+model Company {
+  id        String        @id @default(uuid())
+  name      String
+  document  String?       @unique // CNPJ, opcional por enquanto
+  status    CompanyStatus @default(TRIAL)
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+
+  users         User[]
+  subscriptions Subscription[]
+  licenses      License[]
+  products      Product[]
+  customers     Customer[]
+  sales         Sale[]
+
+  @@map("companies")
+}
+
+enum CompanyStatus {
+  ACTIVE
+  BLOCKED
+  TRIAL
+}
+
+// Esqueleto para "alterar planos" — sem lógica de cobrança ainda.
+model Plan {
+  id            String         @id @default(uuid())
+  name          String
+  price         Decimal        @db.Decimal(10, 2)
+  createdAt     DateTime       @default(now())
+
+  subscriptions Subscription[]
+
+  @@map("plans")
+}
+
+// Esqueleto para "controlar mensalidades".
+model Subscription {
+  id        String             @id @default(uuid())
+  companyId String
+  planId    String
+  status    SubscriptionStatus @default(PENDING)
+  dueDate   DateTime?
+  createdAt DateTime           @default(now())
+
+  company Company @relation(fields: [companyId], references: [id])
+  plan    Plan    @relation(fields: [planId], references: [id])
+
+  @@map("subscriptions")
+}
+
+enum SubscriptionStatus {
+  PENDING
+  PAID
+  OVERDUE
+  CANCELED
+}
+
+// Esqueleto para "gerenciar futuras licenças".
+model License {
+  id        String   @id @default(uuid())
+  companyId String
+  type      String
+  status    String   @default("active")
+  createdAt DateTime @default(now())
+
+  company Company @relation(fields: [companyId], references: [id])
+
+  @@map("licenses")
+}
+
+// Esqueleto para "enviar comunicados para os clientes".
+model Announcement {
+  id          String    @id @default(uuid())
+  title       String
+  body        String
+  createdById String
+  sentAt      DateTime?
+  createdAt   DateTime  @default(now())
+
+  createdBy AdminUser @relation(fields: [createdById], references: [id])
+
+  @@map("announcements")
+}
+
+// ---------------------------------------------------------------
+// APP DO CLIENTE
+// ---------------------------------------------------------------
+
+// Usuários das empresas clientes. Sempre vinculados a uma company.
+model User {
+  id           String   @id @default(uuid())
+  companyId    String
+  name         String
+  email        String
+  passwordHash String
+  createdAt    DateTime @default(now())
+
+  company Company @relation(fields: [companyId], references: [id])
+
+  @@unique([companyId, email])
+  @@index([companyId])
+  @@map("users")
+}
+
+// Catálogo de produtos da empresa cliente. Livre por natureza:
+// o sistema não é travado pra um tipo de negócio específico.
+model Product {
+  id        String   @id @default(uuid())
+  companyId String
+  name      String
+  price     Decimal  @db.Decimal(10, 2)
+  stock     Int      @default(0)
+  createdAt DateTime @default(now())
+
+  company   Company    @relation(fields: [companyId], references: [id])
+  saleItems SaleItem[]
+
+  @@index([companyId])
+  @@map("products")
+}
+
+// Cliente da empresa (o "freguês"), não confundir com Company
+// (que é a empresa cliente do RM ERP no painel admin).
+model Customer {
+  id        String   @id @default(uuid())
+  companyId String
+  name      String
+  phone     String?
+  createdAt DateTime @default(now())
+
+  company Company @relation(fields: [companyId], references: [id])
+  sales   Sale[]
+
+  @@index([companyId])
+  @@map("customers")
+}
+
+// Venda paga na hora ou fiado (a receber). O saldo devedor de um
+// cliente é a soma das vendas com status PENDING.
+model Sale {
+  id         String     @id @default(uuid())
+  companyId  String
+  customerId String
+  total      Decimal    @db.Decimal(10, 2)
+  status     SaleStatus @default(PENDING)
+  createdAt  DateTime   @default(now())
+  paidAt     DateTime?
+
+  company  Company    @relation(fields: [companyId], references: [id])
+  customer Customer   @relation(fields: [customerId], references: [id])
+  items    SaleItem[]
+
+  @@index([companyId])
+  @@map("sales")
+}
+
+enum SaleStatus {
+  PAID
+  PENDING
+}
+
+model SaleItem {
+  id        String  @id @default(uuid())
+  saleId    String
+  productId String
+  quantity  Int
+  unitPrice Decimal @db.Decimal(10, 2)
+
+  sale    Sale    @relation(fields: [saleId], references: [id])
+  product Product @relation(fields: [productId], references: [id])
+
+  @@map("sale_items")
+}
